@@ -1,118 +1,145 @@
----
+# 🌾 Rice Type Classification with PyTorch
 
-# 🌾 Rice Type Classification using PyTorch
-
-This project builds and trains a **PyTorch deep learning model** to classify rice grains based on their morphological characteristics. Using a dataset originally modified for binary classification, we distinguish between **Jasmine rice (1)** and **Gonen rice (0)** types based on extracted numerical features.
+This project focuses on building a **binary classifier** using PyTorch to distinguish between two types of rice: **Jasmine (1)** and **Gonen (0)** based on physical features.
 
 ---
 
-## 📊 About the Dataset
+## 📁 Dataset Overview
 
-### 📌 Context
+**Source**: [Rice Type Classification Dataset on Kaggle](https://www.kaggle.com/datasets/mssmartypants/rice-type-classification)
 
-This dataset was created for educational purposes — to help learners practice binary classification tasks with real-world numerical data. It is a **modified version of an original rice grain dataset**.
+This dataset was created for educational and practice purposes and is based on a modified version of real-world rice grain data.
 
-* **Class Labels:**
+### 📌 Features in the dataset:
 
-  * **Jasmine → 1**
-  * **Gonen → 0**
-
-
-### 🧾 Content
-
-The dataset includes rice grain samples with 11 attributes:
-
-| Column Name       | Description                               |
-| ----------------- | ----------------------------------------- |
-| `id`              | Unique identifier for each sample         |
-| `Area`            | Pixel area of the rice grain              |
-| `MajorAxisLength` | Length of the major axis                  |
-| `MinorAxisLength` | Length of the minor axis                  |
-| `Eccentricity`    | Shape descriptor                          |
-| `ConvexArea`      | Convex hull area                          |
-| `EquivDiameter`   | Equivalent diameter                       |
-| `Extent`          | Ratio of object area to bounding box area |
-| `Perimeter`       | Perimeter length                          |
-| `Roundness`       | Shape roundness                           |
-| `AspectRation`    | Major axis / minor axis                   |
-| `Class`           | 1 = Jasmine, 0 = Gonen (Target Variable)  |
+* `id`: Unique identifier for each sample
+* `Area`: Area of the rice grain
+* `MajorAxisLength`: Length of the major axis
+* `MinorAxisLength`: Length of the minor axis
+* `Eccentricity`: Shape descriptor of elongation
+* `ConvexArea`: Area of the convex hull
+* `EquivDiameter`: Equivalent diameter
+* `Extent`: Ratio of object area to bounding box area
+* `Perimeter`: Perimeter length
+* `Roundness`: Roundness of the object
+* `AspectRation`: Major axis / Minor axis ratio
+* `Class`: **Target label** — `1` = Jasmine, `0` = Gonen
 
 ---
 
-## 🚀 Project Workflow
+## 🛠️ Project Workflow
 
-1. **Download Dataset**
-   Used `opendatasets` and Kaggle API to fetch the dataset.
+### 🔹 Step 4: Data Splitting
 
-2. **Data Preprocessing**
+* The data is cleaned by removing `NaN` values and dropping the `id` column.
+* All feature columns are normalized using **max-abs normalization** to scale values between 0 and 1, which improves model convergence.
+* Labels (`Class`) are reshaped into a 1D tensor for compatibility with PyTorch loss functions.
+* The dataset is split into:
 
-   * Dropped `id` column
-   * Removed null entries
-   * Applied **max-absolute normalization** to features
+  * **Training Set**: 70% (12,729 samples)
+  * **Validation Set**: 15% (2,728 samples)
+  * **Testing Set**: 15% (2,728 samples)
+* `train_test_split` from `sklearn.model_selection` is used with a two-stage split for balanced validation and test sizes.
 
-3. **Split Data**
+### 🔹 Step 5: Dataset & DataLoader
 
-   * Train: 70%
-   * Validation: 15%
-   * Test: 15%
+* A custom PyTorch `Dataset` class is created to handle feature-label pairing and device assignment.
+* This structure simplifies batching and shuffling with `DataLoader`.
+* Each data sample is automatically moved to GPU/CPU using `.to(device)` and converted to `torch.float32`.
+* `DataLoader` objects are created for each data subset (train/validation/test) with a batch size of `8` to ensure efficient training.
 
-4. **PyTorch Dataset Object**
-   Wrapped features and labels into a PyTorch-compatible `Dataset` object.
+```python
+class dataset(Dataset):
+    def __init__(self, X, Y):
+        self.X = torch.tensor(X, dtype=torch.float32).to(device)
+        self.Y = torch.tensor(Y, dtype=torch.float32).to(device)
 
-5. **Neural Network Architecture**
-   A minimal binary classification model:
+    def __len__(self):
+        return len(self.X)
 
-   ```plaintext
-   Input Layer (10 features)
-   ↓
-   Hidden Layer (10 neurons, Linear + Sigmoid)
-   ↓
-   Output Layer (1 neuron, Sigmoid)
-   ```
-
-6. **Training and Validation**
-
-   * Optimizer: Adam
-   * Loss: Binary Cross Entropy
-   * Epochs: 10
-   * Achieved training accuracy \~98.7%
-
-7. **Testing and Inference**
-
-   * Final test accuracy: **98.79%**
-   * Real-time prediction with user input (scaled using original max values)
-
----
-
-## 📈 Example Performance
-
-| Metric              | Value      |
-| ------------------- | ---------- |
-| Train Accuracy      | \~98.7%    |
-| Validation Accuracy | \~98.2%    |
-| Test Accuracy       | **98.79%** |
-| Final Loss          | \~0.016    |
-
----
-
-## 📂 Folder Structure
-
-```
-rice-type-classification/
-├── riceClassification.csv       # Dataset file
-├── rice_model.ipynb             # Full model code in notebook
-├── model.pt                     # (Optional) Saved model
-├── README.md                    # This file
+    def __getitem__(self, index):
+        return self.X[index], self.Y[index]
 ```
 
+### 🔹 Step 6: Model Architecture
+
+* The model is a simple **feedforward neural network** using PyTorch `nn.Module`.
+* Structure:
+
+  * **Input Layer**: 10 input features (matching the number of rice attributes)
+  * **Hidden Layer**: 10 neurons (defined by `HIDDEN_NEURONS`), can be tuned for performance
+  * **Output Layer**: Single neuron with `Sigmoid` activation for binary classification output
+* The use of sigmoid allows output in the (0,1) range, which is suitable for binary cross-entropy loss.
+* Summary shows total parameters = 121
+
+```python
+class MyModel(nn.Module):
+    def __init__(self):
+        super(MyModel, self).__init__()
+        self.input_layer = nn.Linear(X.shape[1], HIDDEN_NEURONS)
+        self.Linear = nn.Linear(HIDDEN_NEURONS, 1)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        x = self.input_layer(x)
+        x = self.Linear(x)
+        x = self.sigmoid(x)
+        return x
+```
+
+### 🔹 Step 7: Training & Validation
+
+* The training loop follows standard supervised learning steps:
+
+  * Forward pass → Compute loss → Backward pass → Update weights
+* **Loss Function**: `BCELoss` — suitable for binary classification problems
+* **Optimizer**: `Adam` — known for fast convergence, learning rate = `1e-3`
+* **Epochs**: `10` (can be increased for further tuning)
+
+**Training Phase:**
+
+* Model trained in batches using `train_dataloader`
+* Predictions are rounded to 0 or 1 for accuracy computation
+* `.backward()` used to compute gradients, and `optimizer.step()` applies updates
+
+**Validation Phase:**
+
+* Run after each epoch using `torch.no_grad()` to disable gradient calculation
+* Uses `validation_dataloader` to check generalization
+
+**Metrics Tracked Per Epoch:**
+
+* Training loss and accuracy
+
+* Validation loss and accuracy
+
+* **Visualizations**:
+
+  * Loss and accuracy curves across epochs help track overfitting or underfitting trends.
+
 ---
 
-## 🛠 Tech Stack
+### 📊 Results
 
-* Python
-* PyTorch
-* Pandas, NumPy
-* Scikit-learn
-* Matplotlib
-* Google Colab
-* Kaggle Dataset via OpenDatasets
+* **Final Test Accuracy**: `98.79%`
+* Model generalizes well with very low validation and test losses.
+
+---
+
+## 💡 Inference
+
+* Normalizes user inputs using max values from original (non-normalized) dataframe.
+* Takes 10 inputs, passes through the model, and returns predicted class (0 or 1).
+
+```python
+model_inputs = torch.Tensor(my_inputs).to(device)
+prediction = model(model_inputs)
+print("Predicted Class:", round(prediction.item()))
+```
+
+---
+
+## 📆 Credits
+
+* Dataset credit: [Kaggle - mssmartypants](https://www.kaggle.com/datasets/mssmartypants/rice-type-classification)
+---
